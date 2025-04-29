@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cralpus | Plinko</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #10141b 0%, #1c222c 100%);
+        }
+        .plinko-board {
+            display: grid;
+            grid-template-columns: repeat(15, 1fr);
+            gap: 8px;
+            margin: 0 auto;
+            width: fit-content;
+        }
+        .peg {
+            width: 16px;
+            height: 16px;
+            background-color: #4a5568;
+            border-radius: 50%;
+            margin: 0 auto;
+        }
+        .ball {
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            position: absolute;
+            transition: transform 0.1s linear;
+            box-shadow: 0 0 8px rgba(118, 75, 162, 0.7);
+            z-index: 10;
+        }
+        .bucket {
+            height: 40px;
+            background-color: #2d3748;
+            border-top: 2px solid #4a5568;
+            position: relative;
+        }
+        .bucket-value {
+            position: absolute;
+            bottom: -25px;
+            width: 100%;
+            text-align: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+        .floating {
+            animation: float 3s ease-in-out infinite;
+        }
+        .stats-card {
+            background: rgba(45, 55, 72, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(74, 85, 104, 0.5);
+        }
+        .multiplier-display {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 100;
+            background: rgba(26, 32, 44, 0.9);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(74, 85, 104, 0.7);
+            border-radius: 12px;
+            padding: 20px;
+            width: 300px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        }
+        .blur-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(16, 20, 27, 0.7);
+            backdrop-filter: blur(5px);
+            z-index: 50;
+        }
+        .multiplier-value {
+            font-size: 3rem;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .positive-multiplier {
+            color: #48bb78;
+        }
+        .negative-multiplier {
+            color: #f56565;
+        }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen text-white font-sans">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-8">
+            <button onclick="window.location.href='../homepage.html'" class="flex items-center text-gray-300 hover:text-white transition">
+                <i class="fas fa-arrow-left mr-2"></i> Back
+            </button>
+            <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-blue-400">
+                CRALPUS CASINO
+            </h1>
+            <div class="flex items-center bg-gray-800 px-4 py-2 rounded-lg">
+                <i class="fas fa-coins text-yellow-400 mr-2"></i>
+                <span id="playerBalance">1000</span>
+            </div>
+        </header>
+
+        <!-- Multiplier Display -->
+        <div class="multiplier-display hidden" id="multiplierDisplay">
+            <h3 class="text-lg font-semibold">Multiplier</h3>
+            <div class="multiplier-value" id="multiplierValue">1.00x</div>
+            <div class="text-gray-300 mb-4">Current Payout</div>
+            <div class="text-2xl font-bold" id="currentPayout">10.00</div>
+            <button class="mt-4 w-full bg-purple-600 hover:bg-purple-700 py-2 rounded-lg transition" onclick="hideMultiplierDisplay()">
+                Close
+            </button>
+        </div>
+
+        <!-- Game Area -->
+        <div class="flex flex-col lg:flex-row gap-8 max-w-6xl mx-auto">
+            <!-- Plinko Board -->
+            <div class="flex-1">
+                <div class="bg-gray-800 rounded-xl p-6 mb-4 shadow-lg">
+                    <div class="relative h-96 overflow-hidden">
+                        <div class="plinko-board" id="plinkoBoard"></div>
+                        <div class="flex mt-2" id="buckets"></div>
+                        <div class="ball hidden" id="ball"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="lg:w-80">
+                <div class="bg-gray-800 rounded-xl p-6 shadow-lg sticky top-4">
+                    <h2 class="text-xl font-semibold mb-6 flex items-center">
+                        <i class="fas fa-bowling-ball text-purple-500 mr-3"></i> Plinko
+                    </h2>
+
+                    <!-- Bet Amount -->
+                    <div class="mb-6">
+                        <label class="block text-gray-300 text-sm mb-2">Bet Amount</label>
+                        <div class="flex">
+                            <button class="bg-gray-700 px-3 py-2 rounded-l-lg hover:bg-gray-600 transition" onclick="adjustBet(-1)">
+                                <i class="fas fa-minus"></i>
+                            </button>
+                            <input type="number" id="betAmount" value="10" min="1" max="1000" 
+                                   class="bg-gray-700 text-center w-full py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                            <button class="bg-gray-700 px-3 py-2 rounded-r-lg hover:bg-gray-600 transition" onclick="adjustBet(1)">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                        <div class="flex justify-between mt-2">
+                            <button class="text-xs bg-gray-700 px-2 py-1 rounded hover:bg-gray-600" onclick="setBet(10)">10</button>
+                            <button class="text-xs bg-gray-700 px-2 py-1 rounded hover:bg-gray-600" onclick="setBet(50)">50</button>
+                            <button class="text-xs bg-gray-700 px-2 py-1 rounded hover:bg-gray-600" onclick="setBet(100)">100</button>
+                            <button class="text-xs bg-gray-700 px-2 py-1 rounded hover:bg-gray-600" onclick="setBet(500)">500</button>
+                            <button class="text-xs bg-gray-700 px-2 py-1 rounded hover:bg-gray-600" onclick="setBet(1000)">1000</button>
+                        </div>
+                    </div>
+
+                    <!-- Risk Level -->
+                    <div class="mb-6">
+                        <label class="block text-gray-300 text-sm mb-2">Risk Level</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button id="lowRisk" class="bg-green-600 hover:bg-green-700 py-2 rounded transition" onclick="setRisk('low')">Low</button>
+                            <button id="medRisk" class="bg-yellow-600 hover:bg-yellow-700 py-2 rounded transition" onclick="setRisk('medium')">Medium</button>
+                            <button id="highRisk" class="bg-red-600 hover:bg-red-700 py-2 rounded transition" onclick="setRisk('high')">High</button>
+                        </div>
+                    </div>
+
+                    <!-- Rows -->
+                    <div class="mb-8">
+                        <label class="block text-gray-300 text-sm mb-2">Rows</label>
+                        <input type="range" id="rowsSlider" min="8" max="13" value="10" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                        <div class="flex justify-between text-xs text-gray-400 mt-1">
+                            <span>8</span>
+                            <span>10.5</span>
+                            <span>13</span>
+                        </div>
+                    </div>
+
+                    <!-- Max Multiplier Info -->
+                    <div class="bg-gray-700 rounded-lg p-4 mb-6">
+                        <div class="flex justify-between text-sm mb-2">
+                            <span class="text-gray-300">Max Multiplier:</span>
+                            <span class="font-semibold" id="maxMultiplier">8.00x</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-300">Max Payout:</span>
+                            <span class="font-semibold" id="potentialPayout">80.00</span>
+                        </div>
+                    </div>
+
+                    <!-- Play Button -->
+                    <button id="playButton" class="w-full bg-gradient-to-r from-purple-600 to-blue-600 py-3 rounded-lg font-semibold hover:opacity-90 transition flex items-center justify-center"
+                            onclick="dropBall()">
+                        <i class="fas fa-play mr-2"></i> DROP BALL
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Player Stats -->
+        <div class="max-w-6xl mx-auto mt-8">
+            <h3 class="text-lg font-semibold mb-4 flex items-center">
+                <i class="fas fa-chart-line text-gray-400 mr-2"></i> Player Stats
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="stats-card rounded-xl p-4 shadow-lg">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-400 text-sm">Total Bets</p>
+                            <p class="text-2xl font-bold" id="totalBets">0</p>
+                        </div>
+                        <div class="bg-purple-600 p-3 rounded-full">
+                            <i class="fas fa-coins text-white"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="stats-card rounded-xl p-4 shadow-lg">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-400 text-sm">Total Winnings</p>
+                            <p class="text-2xl font-bold" id="totalWinnings">0</p>
+                        </div>
+                        <div class="bg-green-600 p-3 rounded-full">
+                            <i class="fas fa-trophy text-white"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="stats-card rounded-xl p-4 shadow-lg">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-400 text-sm">Biggest Win</p>
+                            <p class="text-2xl font-bold" id="biggestWin">0</p>
+                        </div>
+                        <div class="bg-yellow-600 p-3 rounded-full">
+                            <i class="fas fa-star text-white"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize game variables
+        let currentRisk = 'medium';
+        let rows = 10;
+        let playerBalance = 1000;
+        let totalBets = 0;
+        let totalWinnings = 0;
+        let biggestWin = 0;
+        let multipliers = {
+            low: [0, 0.80, 1.00, 1.40, 1.60, 1.80, 2.00, 2.30, 2.70, 3.20, 3.80, 4.60, 5.50, 6.50, 8.00],
+            medium: [0, 0.40, 0.80, 1.00, 2.20, 2.70, 3.30, 4.00, 5.00, 6.20, 7.50, 9.00, 11.00, 14.00, 17.00],
+            high: [0, 0.20, 0.40, 0.80, 1.00, 4.20, 5.50, 7.00, 9.00, 12.00, 16.00, 21.00, 28.00, 37.00, 48.00]
+        };
+
+        // Initialize the game board
+        function initPlinkoBoard() {
+            const plinkoBoard = document.getElementById('plinkoBoard');
+            const buckets = document.getElementById('buckets');
+            
+            // Clear existing elements
+            plinkoBoard.innerHTML = '';
+            buckets.innerHTML = '';
+            
+            // Create pegs with increased spacing
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < 15; col++) {
+                    const peg = document.createElement('div');
+                    peg.className = 'peg';
+                    
+                    // Offset every other row to create the plinko pattern
+                    if (row % 2 === 1) {
+                        peg.style.gridColumn = `${col*2 + 2}`;
+                    } else {
+                        peg.style.gridColumn = `${col*2 + 1}`;
+                    }
+                    
+                    peg.style.gridRow = `${row + 1}`;
+                    plinkoBoard.appendChild(peg);
+                }
+            }
+            
+            // Create buckets
+            const bucketCount = rows % 2 === 0 ? rows + 1 : rows;
+            for (let i = 0; i < bucketCount; i++) {
+                const bucket = document.createElement('div');
+                bucket.className = 'bucket flex-1';
+                bucket.id = `bucket-${i}`;
+                
+                const value = document.createElement('div');
+                value.className = 'bucket-value';
+                value.textContent = `${getMultiplier(i)}x`;
+                
+                bucket.appendChild(value);
+                buckets.appendChild(bucket);
+            }
+            
+            updateMultiplierInfo();
+        }
+
+        // Get multiplier based on bucket index
+        function getMultiplier(bucketIndex) {
+            const bucketCount = rows % 2 === 0 ? rows + 1 : rows;
+            const centerBucket = Math.floor(bucketCount / 2);
+            const distanceFromCenter = Math.abs(bucketIndex - centerBucket);
+            
+            // Cap the distance to the multiplier array length
+            const cappedDistance = Math.min(distanceFromCenter, multipliers[currentRisk].length - 1);
+            return multipliers[currentRisk][cappedDistance];
+        }
+
+        // Get max multiplier for current settings
+        function getMaxMultiplier() {
+            return Math.max(...multipliers[currentRisk]);
+        }
+
+        // Update multiplier and payout info
+        function updateMultiplierInfo() {
+            const maxMultiplier = getMaxMultiplier();
+            document.getElementById('maxMultiplier').textContent = `${maxMultiplier.toFixed(2)}x`;
+            
+            const betAmount = parseFloat(document.getElementById('betAmount').value) || 0;
+            const payout = (betAmount * maxMultiplier).toFixed(2);
+            document.getElementById('potentialPayout').textContent = payout;
+        }
+
+        // Show multiplier display
+        function showMultiplierDisplay(multiplier, payout) {
+            const display = document.getElementById('multiplierDisplay');
+            const value = document.getElementById('multiplierValue');
+            const payoutElement = document.getElementById('currentPayout');
+            
+            // Set color based on multiplier value
+            if (multiplier >= 1) {
+                value.className = 'multiplier-value positive-multiplier';
+            } else {
+                value.className = 'multiplier-value negative-multiplier';
+            }
+            
+            value.textContent = `${multiplier.toFixed(2)}x`;
+            payoutElement.textContent = payout;
+            
+            // Create blur background
+            const blur = document.createElement('div');
+            blur.className = 'blur-background';
+            blur.id = 'blurBackground';
+            document.body.appendChild(blur);
+            
+            display.classList.remove('hidden');
+        }
+
+        // Hide multiplier display
+        function hideMultiplierDisplay() {
+            document.getElementById('multiplierDisplay').classList.add('hidden');
+            const blur = document.getElementById('blurBackground');
+            if (blur) blur.remove();
+        }
+
+        // Set risk level
+        function setRisk(risk) {
+            currentRisk = risk;
+            document.getElementById('lowRisk').classList.remove('bg-green-600', 'bg-yellow-600', 'bg-red-600');
+            document.getElementById('medRisk').classList.remove('bg-green-600', 'bg-yellow-600', 'bg-red-600');
+            document.getElementById('highRisk').classList.remove('bg-green-600', 'bg-yellow-600', 'bg-red-600');
+            
+            if (risk === 'low') {
+                document.getElementById('lowRisk').classList.add('bg-green-600');
+                document.getElementById('medRisk').classList.add('bg-gray-700');
+                document.getElementById('highRisk').classList.add('bg-gray-700');
+            } else if (risk === 'medium') {
+                document.getElementById('lowRisk').classList.add('bg-gray-700');
+                document.getElementById('medRisk').classList.add('bg-yellow-600');
+                document.getElementById('highRisk').classList.add('bg-gray-700');
+            } else {
+                document.getElementById('lowRisk').classList.add('bg-gray-700');
+                document.getElementById('medRisk').classList.add('bg-gray-700');
+                document.getElementById('highRisk').classList.add('bg-red-600');
+            }
+            
+            initPlinkoBoard();
+        }
+
+        // Adjust bet amount
+        function adjustBet(change) {
+            const input = document.getElementById('betAmount');
+            let value = parseInt(input.value) || 0;
+            value += change;
+            
+            if (value < 1) value = 1;
+            if (value > 1000) value = 1000;
+            
+            input.value = value;
+            updateMultiplierInfo();
+        }
+
+        // Set bet amount
+        function setBet(amount) {
+            document.getElementById('betAmount').value = amount;
+            updateMultiplierInfo();
+        }
+
+        // Update player stats display
+        function updateStats() {
+            document.getElementById('playerBalance').textContent = playerBalance;
+            document.getElementById('totalBets').textContent = totalBets;
+            document.getElementById('totalWinnings').textContent = totalWinnings;
+            document.getElementById('biggestWin').textContent = biggestWin;
+        }
+
+        // Drop the ball
+        function dropBall() {
+            const betAmount = parseFloat(document.getElementById('betAmount').value) || 0;
+            
+            // Check if player has enough balance
+            if (betAmount > playerBalance) {
+                alert("You don't have enough coins for this bet!");
+                return;
+            }
+            
+            // Deduct bet from balance
+            playerBalance -= betAmount;
+            totalBets += betAmount;
+            updateStats();
+            
+            const playButton = document.getElementById('playButton');
+            playButton.disabled = true;
+            playButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> DROPPING...';
+            
+            const ball = document.getElementById('ball');
+            ball.classList.remove('hidden');
+            
+            // Start position (top center)
+            const startX = window.innerWidth > 768 ? 
+                (document.getElementById('plinkoBoard').offsetWidth / 2) - 10 : 
+                (window.innerWidth / 2) - 10;
+            
+            ball.style.left = `${startX}px`;
+            ball.style.top = '0px';
+            
+            // Simulate ball drop with increased gravity
+            let x = startX;
+            let y = 0;
+            const speed = 0.5;
+            const gravity = 0.05; // Increased gravity
+            let xVelocity = (Math.random() - 0.5) * 4; // Increased initial velocity
+            let yVelocity = 0;
+            
+            const dropInterval = setInterval(() => {
+                yVelocity += gravity;
+                x += xVelocity;
+                y += yVelocity;
+                
+                // Add some randomness to simulate pegs
+                if (Math.random() < 0.2) {
+                    xVelocity += (Math.random() - 0.5) * 1.5;
+                }
+                
+                ball.style.left = `${x}px`;
+                ball.style.top = `${y}px`;
+                
+                // Check if ball hit bottom
+                if (y > document.getElementById('plinkoBoard').offsetHeight) {
+                    clearInterval(dropInterval);
+                    
+                    // Determine which bucket the ball landed in
+                    const buckets = document.getElementById('buckets');
+                    const bucketWidth = buckets.offsetWidth / buckets.children.length;
+                    const bucketIndex = Math.min(
+                        Math.floor((x - buckets.offsetLeft) / bucketWidth),
+                        buckets.children.length - 1
+                    );
+                    
+                    // Highlight the bucket
+                    const bucket = document.getElementById(`bucket-${bucketIndex}`);
+                    bucket.style.backgroundColor = '#4a5568';
+                    
+                    // Get the multiplier
+                    const multiplier = getMultiplier(bucketIndex);
+                    const winAmount = (betAmount * multiplier).toFixed(2);
+                    
+                    // Update player stats
+                    playerBalance += parseFloat(winAmount);
+                    totalWinnings += parseFloat(winAmount);
+                    if (parseFloat(winAmount) > biggestWin) {
+                        biggestWin = parseFloat(winAmount);
+                    }
+                    updateStats();
+                    
+                    // Show multiplier display
+                    showMultiplierDisplay(multiplier, winAmount);
+                    
+                    // Reset button after delay
+                    setTimeout(() => {
+                        playButton.disabled = false;
+                        playButton.innerHTML = '<i class="fas fa-play mr-2"></i> DROP BALL';
+                        ball.classList.add('hidden');
+                        bucket.style.backgroundColor = '';
+                    }, 2000);
+                }
+            }, 16);
+        }
+
+        // Initialize the game when page loads
+        window.onload = function() {
+            initPlinkoBoard();
+            setRisk('medium');
+            updateStats();
+            
+            // Set up event listeners
+            document.getElementById('betAmount').addEventListener('input', updateMultiplierInfo);
+            document.getElementById('rowsSlider').addEventListener('input', function() {
+                rows = parseInt(this.value);
+                initPlinkoBoard();
+            });
+        };
+    </script>
+</body>
+</html>

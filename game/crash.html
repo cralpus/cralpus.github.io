@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cralpus | Crash</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #10141b 0%, #1c222c 100%);
+        }
+        .stats-card {
+            background: rgba(45, 55, 72, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(74, 85, 104, 0.5);
+        }
+        .chip {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            color: white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .chip:hover {
+            transform: scale(1.1);
+        }
+        .chip.selected {
+            transform: scale(1.15);
+            box-shadow: 0 0 10px gold;
+        }
+        .chip.disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        .payout-notification {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 100;
+            padding: 20px 40px;
+            border-radius: 12px;
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            background-color: rgba(0, 0, 0, 0.7);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+            display: none;
+            animation: fadeInOut 2.5s ease-in-out;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+        .payout-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        .payout-multiplier {
+            font-size: 18px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+        .payout-amount {
+            font-size: 28px;
+            font-weight: 800;
+        }
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+            20% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+            80% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+        }
+        .payout-win {
+            color: #10b981;
+            border-color: #10b981;
+        }
+        .payout-loss {
+            color: #ef4444;
+            border-color: #ef4444;
+        }
+        .clear-bet-btn {
+            background-color: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.5);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .clear-bet-btn:hover {
+            background-color: rgba(239, 68, 68, 0.3);
+        }
+        .crash-graph {
+            height: 300px;
+            width: 100%;
+            background: rgba(30, 41, 59, 0.5);
+            border-radius: 12px;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        .crash-line {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, rgba(16, 185, 129, 0) 0%, rgba(16, 185, 129, 1) 100%);
+            transform-origin: left center;
+            transform: scaleX(0);
+            transition: transform 0.1s linear;
+        }
+        .rocket {
+            position: absolute;
+            bottom: -15px;
+            left: 0;
+            width: 30px;
+            height: 30px;
+            transform: translateX(-50%);
+            transition: left 0.1s linear;
+            z-index: 10;
+        }
+        .rocket svg {
+            width: 100%;
+            height: 100%;
+            color: #10b981;
+            filter: drop-shadow(0 0 5px rgba(16, 185, 129, 0.7));
+        }
+        .explosion {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            background: radial-gradient(circle, rgba(255,200,0,0.8) 0%, rgba(255,100,0,0.8) 50%, rgba(255,0,0,0) 70%);
+            border-radius: 50%;
+            transform: scale(0);
+            opacity: 0;
+            z-index: 20;
+        }
+        .explosion.active {
+            animation: explode 0.5s ease-out forwards;
+        }
+        @keyframes explode {
+            0% { transform: scale(0); opacity: 1; }
+            100% { transform: scale(1); opacity: 0; }
+        }
+        .multiplier-display {
+            font-size: 48px;
+            font-weight: bold;
+            text-align: center;
+            margin: 20px 0;
+            background: rgba(30, 41, 59, 0.5);
+            padding: 20px;
+            border-radius: 12px;
+        }
+        .bet-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 8px;
+        }
+        .bet-table th {
+            text-align: left;
+            padding: 8px 12px;
+            background: rgba(30, 41, 59, 0.5);
+            color: #94a3b8;
+            font-weight: 500;
+        }
+        .bet-table td {
+            padding: 12px;
+            background: rgba(30, 41, 59, 0.3);
+            border-radius: 4px;
+        }
+        .bet-table tr:hover td {
+            background: rgba(30, 41, 59, 0.5);
+        }
+        .auto-cashout-input {
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid rgba(74, 85, 104, 0.5);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            width: 80px;
+            text-align: center;
+        }
+        .game-button {
+            transition: all 0.2s ease;
+            transform: scale(1);
+        }
+        .game-button:hover {
+            transform: scale(1.05);
+        }
+        .game-button:active {
+            transform: scale(0.98);
+        }
+        .history-item {
+            display: inline-block;
+            margin: 0 4px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .history-win {
+            background-color: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+        .history-loss {
+            background-color: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen text-white font-sans">
+    <!-- Payout Notification -->
+    <div id="payout-notification" class="payout-notification">
+        <div class="payout-content">
+            <div id="payout-result-text"></div>
+            <div id="payout-multiplier" class="payout-multiplier"></div>
+            <div id="payout-amount" class="payout-amount"></div>
+        </div>
+    </div>
+
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-8">
+            <button onclick="window.location.href='../homepage.html'" class="flex items-center text-gray-300 hover:text-white transition">
+                <i class="fas fa-arrow-left mr-2"></i> Back
+            </button>
+            <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-blue-400">
+                CRALPUS CASINO
+            </h1>
+            <div class="flex items-center bg-gray-800 px-4 py-2 rounded-lg">
+                <i class="fas fa-coins text-yellow-400 mr-2"></i>
+                <span id="playerBalance">1000</span>
+            </div>
+        </header>
+
+        <!-- Game Area -->
+        <div class="flex flex-col lg:flex-row gap-8 max-w-6xl mx-auto">
+            <!-- Crash Game -->
+            <div class="flex-1">
+                <div class="bg-gray-800 rounded-xl p-6 mb-4 shadow-lg relative">
+                    <!-- Crash Graph with Rocket -->
+                    <div class="crash-graph">
+                        <div class="crash-line" id="crashLine"></div>
+                        <div class="rocket" id="rocket">
+                            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 2.5c0 1.5-.5 3-1.5 4.5L12 10l1.5-3C13.5 5.5 13 4 12 2.5z" fill="currentColor"/>
+                                <path d="M8.5 12l-6-1.5c0-3 1.5-6 4.5-7.5l3 6-2 3z" fill="currentColor"/>
+                                <path d="M15.5 12l6-1.5c0-3-1.5-6-4.5-7.5l-3 6 2 3z" fill="currentColor"/>
+                                <path d="M12 13.5l-1.5 3 3 1.5 3-1.5-1.5-3-3 0z" fill="currentColor"/>
+                                <path d="M8.5 12l-3 6c3 1.5 6 1.5 9 0l-3-6-3 0z" fill="currentColor"/>
+                                <path d="M15.5 12l3 6c-3 1.5-6 1.5-9 0l3-6 3 0z" fill="currentColor"/>
+                            </svg>
+                        </div>
+                        <div class="explosion" id="explosion"></div>
+                    </div>
+
+                    <!-- Multiplier Display -->
+                    <div class="multiplier-display" id="multiplierDisplay">
+                        <div id="currentMultiplier">1.00x</div>
+                    </div>
+
+                    <!-- Game Controls -->
+                    <div class="flex justify-center space-x-4 mt-4" id="game-controls">
+                        <button id="place-bet-button" class="game-button bg-green-600 hover:bg-green-700 px-6 py-3 rounded-lg font-semibold">
+                            <i class="fas fa-play mr-2"></i> Place Bet
+                        </button>
+                        <button id="cash-out-button" class="game-button bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg font-semibold hidden">
+                            <i class="fas fa-hand-paper mr-2"></i> Cash Out
+                        </button>
+                    </div>
+
+                    <!-- Betting Chips -->
+                    <div class="flex justify-center space-x-4 mt-8" id="betting-chips">
+                        <div class="chip bg-red-500" data-value="10" onclick="placeBet(10)">10</div>
+                        <div class="chip bg-blue-500" data-value="25" onclick="placeBet(25)">25</div>
+                        <div class="chip bg-green-500" data-value="50" onclick="placeBet(50)">50</div>
+                        <div class="chip bg-purple-500" data-value="100" onclick="placeBet(100)">100</div>
+                        <div class="chip bg-yellow-500" data-value="500" onclick="placeBet(500)">500</div>
+                    </div>
+
+                    <!-- Current Bet -->
+                    <div class="text-center mt-4 flex items-center justify-center">
+                        <span class="text-gray-300">Current Bet:</span>
+                        <span id="current-bet" class="ml-2 font-bold">0</span>
+                        <span id="clear-bet" class="clear-bet-btn ml-2 hidden" onclick="clearBet()">
+                            <i class="fas fa-times mr-1"></i>Clear
+                        </span>
+                    </div>
+
+                    <!-- Auto Cashout -->
+                    <div class="flex items-center justify-center mt-6">
+                        <span class="text-gray-300 mr-2">Auto Cashout:</span>
+                        <input type="number" id="auto-cashout" class="auto-cashout-input" min="1.1" max="100" step="0.1" value="2.0">
+                        <span class="text-gray-300 ml-2">x</span>
+                    </div>
+
+                    <!-- Game History -->
+                    <div class="mt-6">
+                        <h3 class="text-lg font-semibold mb-2">Recent Games</h3>
+                        <div id="game-history" class="flex overflow-x-auto py-2">
+                            <!-- History items will be added here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Game Info -->
+            <div class="lg:w-80">
+                <div class="bg-gray-800 rounded-xl p-6 shadow-lg sticky top-4">
+                    <h2 class="text-xl font-semibold mb-6 flex items-center">
+                        <i class="fas fa-info-circle text-blue-500 mr-3"></i> Game Info
+                    </h2>
+
+                    <div class="space-y-4">
+                        <div>
+                            <h3 class="text-lg font-semibold mb-2">Crash Rules</h3>
+                            <ul class="text-sm text-gray-300 space-y-2">
+                                <li>• Place a bet and watch the rocket take off</li>
+                                <li>• Cash out before the rocket explodes to win</li>
+                                <li>• The higher you cash out, the more you win</li>
+                                <li>• If you don't cash out before the explosion, you lose your bet</li>
+                            </ul>
+                        </div>
+
+                        <div class="bg-gray-700 rounded-lg p-4">
+                            <h3 class="text-lg font-semibold mb-2">Betting Table</h3>
+                            <table class="bet-table">
+                                <thead>
+                                    <tr>
+                                        <th>Multiplier</th>
+                                        <th>Payout</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>1.5x</td>
+                                        <td>1.5x</td>
+                                    </tr>
+                                    <tr>
+                                        <td>2.0x</td>
+                                        <td>2.0x</td>
+                                    </tr>
+                                    <tr>
+                                        <td>3.0x</td>
+                                        <td>3.0x</td>
+                                    </tr>
+                                    <tr>
+                                        <td>5.0x</td>
+                                        <td>5.0x</td>
+                                    </tr>
+                                    <tr>
+                                        <td>10.0x</td>
+                                        <td>10.0x</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Player Stats -->
+        <div class="max-w-6xl mx-auto mt-8">
+            <h3 class="text-lg font-semibold mb-4 flex items-center">
+                <i class="fas fa-chart-line text-gray-400 mr-2"></i> Player Stats
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="stats-card rounded-xl p-4 shadow-lg">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-400 text-sm">Total Bets</p>
+                            <p class="text-2xl font-bold" id="totalBets">0</p>
+                        </div>
+                        <div class="bg-purple-600 p-3 rounded-full">
+                            <i class="fas fa-coins text-white"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="stats-card rounded-xl p-4 shadow-lg">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-400 text-sm">Total Winnings</p>
+                            <p class="text-2xl font-bold" id="totalWinnings">0</p>
+                        </div>
+                        <div class="bg-green-600 p-3 rounded-full">
+                            <i class="fas fa-trophy text-white"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="stats-card rounded-xl p-4 shadow-lg">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-400 text-sm">Biggest Win</p>
+            <p class="text-2xl font-bold" id="biggestWin">0</p>
+        </div>
+        <div class="bg-yellow-600 p-3 rounded-full">
+            <i class="fas fa-star text-white"></i>
+        </div>
+    </div>
+</div>
+</div>
+</div>
+</div>
+
+<script>
+    // Game variables
+    let playerBalance = 1000;
+    let currentBet = 0;
+    let totalBets = 0;
+    let totalWinnings = 0;
+    let biggestWin = 0;
+    let gameInProgress = false;
+    let crashed = false;
+    let currentMultiplier = 1.0;
+    let autoCashout = 2.0;
+    let gameHistory = [];
+    let cashoutMultiplier = 0;
+    let crashPoint = 0;
+    let gameInterval;
+
+    // Show payout notification
+    function showPayout(message, isWin, amount = 0, multiplier = '') {
+        const notification = document.getElementById('payout-notification');
+        const resultText = document.getElementById('payout-result-text');
+        const multiplierText = document.getElementById('payout-multiplier');
+        const amountText = document.getElementById('payout-amount');
+
+        // Set content
+        resultText.textContent = message;
+        multiplierText.textContent = multiplier;
+        amountText.textContent = amount > 0 ? `+${amount}` : amount;
+        
+        // Set styling
+        notification.className = isWin ? 'payout-notification payout-win' : 'payout-notification payout-loss';
+        
+        // Show and animate
+        notification.style.display = 'block';
+        
+        setTimeout(() => {
+            notification.style.display = 'none';
+        }, 2500);
+    }
+
+    // Update chip availability based on balance
+    function updateChipAvailability() {
+        const chips = document.querySelectorAll('.chip');
+        chips.forEach(chip => {
+            const chipValue = parseInt(chip.dataset.value);
+            if (chipValue > playerBalance) {
+                chip.classList.add('disabled');
+            } else {
+                chip.classList.remove('disabled');
+            }
+        });
+    }
+
+    // Place a bet
+    function placeBet(amount) {
+        if (gameInProgress) return;
+        
+        // Check if player can afford the bet
+        if (amount > playerBalance) {
+            return;
+        }
+        
+        // Check if adding this bet would exceed balance
+        if ((currentBet + amount) > playerBalance) {
+            return;
+        }
+        
+        const chips = document.querySelectorAll('.chip');
+        chips.forEach(chip => chip.classList.remove('selected'));
+        
+        currentBet += amount;
+        document.getElementById('current-bet').textContent = currentBet;
+        
+        // Show clear bet button if there's a bet
+        if (currentBet > 0) {
+            document.getElementById('clear-bet').classList.remove('hidden');
+        }
+        
+        // Highlight selected chip
+        event.target.classList.add('selected');
+        
+        // Update chip availability
+        updateChipAvailability();
+    }
+
+    // Clear current bet
+    function clearBet() {
+        if (gameInProgress) return;
+        
+        currentBet = 0;
+        document.getElementById('current-bet').textContent = '0';
+        document.getElementById('clear-bet').classList.add('hidden');
+        
+        // Remove selected from all chips
+        document.querySelectorAll('.chip').forEach(chip => {
+            chip.classList.remove('selected');
+        });
+        
+        // Update chip availability
+        updateChipAvailability();
+    }
+
+    // Start the game
+    function startGame() {
+        if (gameInProgress || currentBet <= 0) return;
+        
+        // Deduct bet from balance
+        playerBalance -= currentBet;
+        totalBets += currentBet;
+        updateStats();
+        
+        // Initialize game state
+        gameInProgress = true;
+        crashed = false;
+        currentMultiplier = 1.0;
+        cashoutMultiplier = 0;
+        crashPoint = 0;
+        
+        // Get auto cashout value
+        autoCashout = parseFloat(document.getElementById('auto-cashout').value) || 2.0;
+        
+        // Update UI
+        document.getElementById('place-bet-button').classList.add('hidden');
+        document.getElementById('cash-out-button').classList.remove('hidden');
+        
+        // Disable betting chips and clear bet button
+        document.querySelectorAll('.chip').forEach(chip => {
+            chip.style.pointerEvents = 'none';
+            chip.style.opacity = '0.5';
+        });
+        document.getElementById('clear-bet').classList.add('hidden');
+        
+        // Reset graph and rocket
+        document.getElementById('crashLine').style.transform = 'scaleX(0)';
+        document.getElementById('crashLine').style.background = 'linear-gradient(90deg, rgba(16, 185, 129, 0) 0%, rgba(16, 185, 129, 1) 100%)';
+        document.getElementById('rocket').style.left = '0%';
+        
+        // Generate crash point (between 1.1x and 3x, making it more likely to crash early)
+        // Using a weighted random function to favor lower multipliers
+        const weightedRandom = () => {
+            // 70% chance to crash between 1.1x and 2.0x
+            // 20% chance to crash between 2.0x and 3.0x
+            // 10% chance to crash between 3.0x and 5.0x
+            const rand = Math.random();
+            if (rand < 0.7) {
+                return 1.0 + Math.random() * 1.0; // 1.1-2.0
+            } else if (rand < 0.9) {
+                return 2.0 + Math.random() * 1.0; // 2.0-3.0
+            } else {
+                return 3.0 + Math.random() * 2.0; // 3.0-5.0
+            }
+        };
+        
+        crashPoint = weightedRandom();
+        
+        // Start game loop with faster multiplier increase
+        gameInterval = setInterval(updateGame, 50); // Faster update interval
+    }
+
+    // Update the game state
+    function updateGame() {
+        if (crashed) return;
+        
+        // Increase multiplier faster
+        currentMultiplier += 0.02; // Increased from 0.01 to 0.02
+        document.getElementById('currentMultiplier').textContent = currentMultiplier.toFixed(2) + 'x';
+        
+        // Update graph and rocket position
+        const progress = Math.min(currentMultiplier / 5, 1.0); // Changed from 10 to 5 for better visualization
+        document.getElementById('crashLine').style.transform = `scaleX(${progress})`;
+        document.getElementById('rocket').style.left = `${progress * 100}%`;
+        
+        // Check for auto cashout
+        if (autoCashout > 0 && currentMultiplier >= autoCashout) {
+            cashOut();
+            return;
+        }
+        
+        // Check for crash
+        if (currentMultiplier >= crashPoint) {
+            crashGame();
+        }
+    }
+
+    // Player cashes out
+    function cashOut() {
+        if (!gameInProgress || crashed) return;
+        
+        // Calculate winnings
+        cashoutMultiplier = currentMultiplier;
+        const winnings = Math.floor(currentBet * cashoutMultiplier);
+        
+        // Update player stats
+        playerBalance += winnings;
+        totalWinnings += winnings;
+        if (winnings > biggestWin) {
+            biggestWin = winnings;
+        }
+        updateStats();
+        
+        // Show payout
+        showPayout('CASHOUT', true, winnings - currentBet, `${cashoutMultiplier.toFixed(2)}x PAYOUT`);
+        
+        // End game
+        endGame();
+        
+        // Add to history
+        addToHistory(true, cashoutMultiplier);
+    }
+
+    // Game crashes
+    function crashGame() {
+        crashed = true;
+        
+        // Show explosion at rocket position
+        const rocket = document.getElementById('rocket');
+        const explosion = document.getElementById('explosion');
+        const rocketRect = rocket.getBoundingClientRect();
+        const graphRect = document.querySelector('.crash-graph').getBoundingClientRect();
+        
+        // Position explosion at rocket
+        const left = rocketRect.left - graphRect.left + rocketRect.width/2;
+        const top = rocketRect.top - graphRect.top + rocketRect.height/2;
+        
+        explosion.style.left = `${left - 50}px`;
+        explosion.style.top = `${top - 50}px`;
+        explosion.classList.add('active');
+        
+        // Hide rocket
+        rocket.style.opacity = '0';
+        
+        // Show crash point on graph
+        const crashLine = document.getElementById('crashLine');
+        crashLine.style.background = 'linear-gradient(90deg, rgba(16, 185, 129, 0) 0%, rgba(239, 68, 68, 1) 100%)';
+        
+        // Show payout
+        showPayout('EXPLODED', false, -currentBet, '0x PAYOUT');
+        
+        // End game
+        endGame();
+        
+        // Add to history
+        addToHistory(false, currentMultiplier);
+    }
+
+    // End the game
+    function endGame() {
+        gameInProgress = false;
+        clearInterval(gameInterval);
+        
+        // Update UI
+        document.getElementById('place-bet-button').classList.remove('hidden');
+        document.getElementById('cash-out-button').classList.add('hidden');
+        
+        // Enable betting chips
+        document.querySelectorAll('.chip').forEach(chip => {
+            chip.style.pointerEvents = 'auto';
+            chip.style.opacity = '1';
+        });
+        
+        // Reset rocket
+        setTimeout(() => {
+            document.getElementById('rocket').style.opacity = '1';
+            document.getElementById('explosion').classList.remove('active');
+        }, 500);
+        
+        // Reset bet if crashed
+        if (crashed) {
+            currentBet = 0;
+            document.getElementById('current-bet').textContent = '0';
+            document.getElementById('clear-bet').classList.add('hidden');
+        }
+        
+        // Update chip availability
+        updateChipAvailability();
+    }
+
+    // Add result to game history
+    function addToHistory(win, multiplier) {
+        // Limit history to 10 items
+        if (gameHistory.length >= 10) {
+            gameHistory.shift();
+        }
+        
+        gameHistory.push({ win, multiplier });
+        
+        // Update history display
+        const historyContainer = document.getElementById('game-history');
+        historyContainer.innerHTML = '';
+        
+        gameHistory.forEach(item => {
+            const historyItem = document.createElement('div');
+            historyItem.className = `history-item ${item.win ? 'history-win' : 'history-loss'}`;
+            historyItem.textContent = item.multiplier.toFixed(2) + 'x';
+            historyContainer.appendChild(historyItem);
+        });
+    }
+
+    // Update player stats display
+    function updateStats() {
+        document.getElementById('playerBalance').textContent = playerBalance;
+        document.getElementById('totalBets').textContent = totalBets;
+        document.getElementById('totalWinnings').textContent = totalWinnings;
+        document.getElementById('biggestWin').textContent = biggestWin;
+    }
+
+    // Initialize the game
+    window.onload = function() {
+        updateStats();
+        updateChipAvailability();
+        
+        // Set up event listeners
+        document.getElementById('place-bet-button').addEventListener('click', startGame);
+        document.getElementById('cash-out-button').addEventListener('click', cashOut);
+        
+        // Initialize auto cashout input
+        document.getElementById('auto-cashout').addEventListener('change', function() {
+            const value = parseFloat(this.value);
+            if (isNaN(value) || value < 1.1) {
+                this.value = 1.1;
+            } else if (value > 100) {
+                this.value = 100;
+            }
+        });
+    };
+</script>
+</body>
+</html>
